@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Cinema Management System</title>
+    <style>
+        body {
+            background-color: #141414;
+            color: #ffffff;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #e50914;
+            text-align: center;
+            font-size: 3em;
+            margin-bottom: 40px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .btn {
+            background-color: #e50914;
+            color: white;
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #f40612;
+        }
+        .btn-secondary {
+            background-color: #333;
+        }
+        .btn-secondary:hover {
+            background-color: #555;
+        }
+        #result {
+            text-align: center;
+            font-size: 1.2em;
+            margin: 20px 0;
+            color: #0f0;
+        }
+        nav {
+            text-align: center;
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Cinema Management System</h1>
+        <nav>
+            <button class="btn" onclick="importData()">Import Randomized Data</button>
+            <button class="btn" onclick="window.location.href='/status'">Database-state</button>
+        </nav>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function importData() {
+            document.getElementById('result').innerText = 'Import runs – please wait...';
+            fetch('/import', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('result').innerHTML = 
+                        '<strong style="color:#0f0;">' + (data.message || data.error) + '</strong><br>' +
+                        'Site will be automatically actualised...';
+                    setTimeout(() => location.reload(), 2000);
+                })
+                .catch(err => {
+                    document.getElementById('result').innerHTML = '<strong style="color:#f00;">Error: ' + err + '</strong>';
+                });
+        }
+    </script>
+</body>
+</html>
