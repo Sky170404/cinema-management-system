@@ -174,7 +174,7 @@ def status():
 def show_table(table_name):
     allowed_tables = ['Employee', 'Manager', 'Worker', 'Movie', 'Trailer', 'Room', 'Screening', 'Customer', 'Ticket', 'handles']
     if table_name not in allowed_tables:
-        return "<h2 style='color:#e50914;'>Ungültige Tabelle!</h2><a href='/status'>Back</a>", 400
+        return "<h2 style='color:#e50914;'>invalid table!</h2><a href='/status'>Back</a>", 400
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -216,7 +216,7 @@ def show_table(table_name):
             {table_html}
             <div class="back">
                 <a href="/status"><button class="btn">← Back to overview</button></a>
-                <a href="/"><button class="btn">back to main page</button></a>
+                <a href="/"><button class="btn">← back to main page</button></a>
             </div>
         </body></html>
         '''
