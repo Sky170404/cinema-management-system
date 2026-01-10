@@ -7,14 +7,30 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 
 DB_HOST = 'db'
+DB_PORT = 3306
 DB_USER = 'root'
 DB_PASSWORD = 'root'
 DB_NAME = 'cinema'
 
 fake = Faker()
 
+#def get_db_connection():
+    #return pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, db=DB_NAME, cursorclass=pymysql.cursors.DictCursor)
 def get_db_connection():
-    return pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, db=DB_NAME, cursorclass=pymysql.cursors.DictCursor)
+    try:
+        conn = pymysql.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            db=DB_NAME,
+            cursorclass=pymysql.cursors.DictCursor
+        )
+        print("Connected to DB successfully!")
+        return conn
+    except Exception as e:
+        print("DB connection failed:", e)
+        raise
 
 @app.route('/')
 def index():
@@ -149,7 +165,7 @@ def status():
     </head>
     <body>
         <div class="container">
-            <h1>Datenbank-Status</h1>
+            <h1>Datenbank-state</h1>
             <p style="text-align:center;">Klick on an entity to reveal its data</p>
             <div class="grid">
                 <div class="card"><h3>Employee</h3><a href="/table/Employee"><button class="btn">Show</button></a></div>

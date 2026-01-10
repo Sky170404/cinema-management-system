@@ -98,3 +98,5 @@ CREATE TABLE employs (
     FOREIGN KEY (EmployeeID) REFERENCES Worker(EmployeeID) ON DELETE CASCADE,
     CHECK (EmployerID <> EmployeeID)
 );
+
+
