@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request,redirect
 import pymysql
 from faker import Faker
 import random
@@ -242,6 +242,142 @@ def show_table(table_name):
         cursor.close()
         conn.close()
 
+
+#neu
+@app.route('/cleaning-michelle', methods=['GET', 'POST'])
+def cleaning_assignment_michelle():
+    conn = None
+    cursor = None
+    message = None
+    manager_name = "Manager" 
+
+    try:
+        manager_id = request.args.get('manager_id')
+        if not manager_id:
+            return redirect('/manager-login')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT Name FROM Employee WHERE EmployeeID = %s", (manager_id,))
+        manager_row = cursor.fetchone()
+        if manager_row:
+            manager_name = manager_row['Name']
+
+        if request.method == 'POST':
+            if 'delete' in request.form:
+                worker_id = request.form['delete_worker']
+                room_id = request.form['delete_room']
+                cursor.execute("DELETE FROM handles WHERE WorkerID = %s AND RoomID = %s", (worker_id, room_id))
+                conn.commit()
+                message = f"Zuweisung Worker {worker_id} → Room {room_id} entfernt!"
+            else:
+                room_id = request.form['room']
+                worker_ids = request.form.getlist('workers')
+                assigned_count = 0
+                for worker_id in worker_ids:
+                    cursor.execute("INSERT IGNORE INTO handles (WorkerID, RoomID) VALUES (%s, %s)", (worker_id, room_id))
+                    assigned_count += 1
+                conn.commit()
+                message = f"{assigned_count} Worker zu Room {room_id} zugewiesen!"
+
+        position_filter = request.args.get('position', '')
+
+        cursor.execute("""
+            SELECT DISTINCT r.RoomID, r.Capacity, r.ScreeningType
+            FROM Room r
+            JOIN Screening s ON r.RoomID = s.RoomID
+            WHERE s.Showtime < NOW()
+            ORDER BY r.RoomID
+        """)
+        rooms = cursor.fetchall() or []
+
+        position_query = ""
+        if position_filter in ['Cleaner', 'Technician', 'Usher']:
+            position_query = f" AND w.Position = '{position_filter}'"
+        cursor.execute("""
+            SELECT w.EmployeeID, e.Name, w.Position
+            FROM Worker w
+            JOIN Employee e ON w.EmployeeID = e.EmployeeID
+            WHERE w.Position IN ('Cleaner', 'Technician', 'Usher') """ + position_query + """
+            ORDER BY e.Name
+        """)
+        workers = cursor.fetchall() or []
+
+        cursor.execute("""
+            SELECT e.Name, w.Position, w.EmployeeID,
+                   GROUP_CONCAT(DISTINCT h.RoomID) AS assigned_rooms_list,
+                   COUNT(DISTINCT h.RoomID) AS assigned_count,
+                   w.WorkingHours
+            FROM Worker w
+            JOIN Employee e ON w.EmployeeID = e.EmployeeID
+            LEFT JOIN handles h ON w.EmployeeID = h.WorkerID
+            GROUP BY w.EmployeeID
+            ORDER BY assigned_count DESC
+        """)
+        workload = cursor.fetchall() or []
+
+        return render_template('cleaning.html', 
+                               rooms=rooms, 
+                               workers=workers, 
+                               workload=workload, 
+                               message=message, 
+                               position_filter=position_filter,
+                               manager_id=manager_id,
+                               manager_name=manager_name)
+
+    except Exception as e:
+        print(f"Cleaning error: {str(e)}")
+        return f"<h1>Error: {str(e)}</h1><p>Check Docker logs!</p>", 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+#neu für use case anmeldung
+@app.route('/manager-login', methods=['GET', 'POST'])
+def manager_login():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        message = None
+
+        if request.method == 'POST':
+            employee_id = request.form.get('employee_id')
+            if not employee_id:
+                message = "Bitte wählen Sie einen Manager aus!"
+            else:
+                cursor.execute("""
+                    SELECT e.Name
+                    FROM Employee e
+                    JOIN Manager m ON e.EmployeeID = m.EmployeeID
+                    WHERE e.EmployeeID = %s
+                """, (employee_id,))
+                manager = cursor.fetchone()
+                if manager:
+                    return redirect(f"/cleaning-michelle?manager_id={employee_id}")
+                else:
+                    message = "Kein Manager mit dieser ID gefunden!"
+
+        cursor.execute("""
+            SELECT e.EmployeeID, e.Name
+            FROM Employee e
+            JOIN Manager m ON e.EmployeeID = m.EmployeeID
+            ORDER BY e.Name
+        """)
+        managers = cursor.fetchall() or []
+
+        cursor.close()
+        conn.close()
+
+        return render_template('manager_login.html', managers=managers, message=message)
+
+    except Exception as e:
+        print(f"Login error: {str(e)}")
+        return f"<h1>Error: {str(e)}</h1><p>Check Docker logs!</p>", 500
+#ende
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
