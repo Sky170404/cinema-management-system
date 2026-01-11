@@ -60,6 +60,8 @@
             <button class="btn" onclick="importData()">Import Randomized Data</button>
             <button class="btn" onclick="window.location.href='/status'">Database-state</button>
             <button class="btn" onclick="window.location.href='/manager-login'">Cleaning Assignment (Manager Login)</button>
+            <button class="btn" onclick="migrateToMongo()">Migrate to MongoDB</button>
+            <button class="btn" onclick="window.location.href='/mongo-status'">Show MongoDB Data</button>
         </nav>
         <div id="result"></div>
     </div>
@@ -74,6 +76,23 @@
                         '<strong style="color:#0f0;">' + (data.message || data.error) + '</strong><br>' +
                         'Site will be automatically actualised...';
                     setTimeout(() => location.reload(), 2000);
+                })
+                .catch(err => {
+                    document.getElementById('result').innerHTML = '<strong style="color:#f00;">Error: ' + err + '</strong>';
+                });
+        }
+    </script>
+
+    <script>
+        function migrateToMongo() {
+            if (!confirm("This will DELETE ALL DATA in MongoDB and migrate from MariaDB. Proceed?")) return;
+
+            document.getElementById('result').innerText = 'Migration runs – please wait...';
+            fetch('/migrate-to-mongo', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('result').innerHTML = 
+                        '<strong style="color:#0f0;">' + (data.message || data.error) + '</strong>';
                 })
                 .catch(err => {
                     document.getElementById('result').innerHTML = '<strong style="color:#f00;">Error: ' + err + '</strong>';

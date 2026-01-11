@@ -2,7 +2,7 @@ from flask import Flask, render_template, jsonify, request,redirect
 import pymysql
 from faker import Faker
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 app = Flask(__name__)
 
@@ -377,6 +377,177 @@ def manager_login():
     except Exception as e:
         print(f"Login error: {str(e)}")
         return f"<h1>Error: {str(e)}</h1><p>Check Docker logs!</p>", 500
+#ende
+
+#neuSQL
+from pymongo import MongoClient
+
+@app.route('/migrate-to-mongo', methods=['POST'])
+def migrate_to_mongo():
+    try:
+        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
+        mongo_db = mongo_client['cinema']
+
+        for collection_name in mongo_db.list_collection_names():
+            mongo_db.drop_collection(collection_name)
+
+        sql_conn = get_db_connection()
+        cursor = sql_conn.cursor()
+
+        cursor.execute("""
+            SELECT e.EmployeeID, e.Name, e.Salary, e.Email,
+                   m.LeadershipExperience, m.Department,
+                   w.Position, w.WorkingHours
+            FROM Employee e
+            LEFT JOIN Manager m ON e.EmployeeID = m.EmployeeID
+            LEFT JOIN Worker w ON e.EmployeeID = w.EmployeeID
+        """)
+        employees = cursor.fetchall()
+        mongo_employees = []
+        for emp in employees:
+            doc = {
+                "employeeID": emp['EmployeeID'],
+                "name": emp['Name'],
+                "salary": float(emp['Salary']),
+                "email": emp['Email'],
+            }
+            if emp['LeadershipExperience']:
+                doc["role"] = "Manager"
+                doc["leadershipExperience"] = emp['LeadershipExperience']
+                doc["department"] = emp['Department']
+            else:
+                doc["role"] = "Worker"
+                doc["position"] = emp['Position']
+                doc["workingHours"] = emp['WorkingHours']
+            mongo_employees.append(doc)
+        if mongo_employees:
+            mongo_db.employees.insert_many(mongo_employees)
+
+        cursor.execute("SELECT * FROM Movie")
+        movies = cursor.fetchall()
+        for movie in movies:
+            cursor.execute("SELECT TrailerID, URL, Description FROM Trailer WHERE MovieID = %s", (movie['MovieID'],))
+            trailers = cursor.fetchall()
+            movie_doc = dict(movie)
+            movie_doc["trailers"] = trailers
+            mongo_db.movies.insert_one(movie_doc)
+
+        cursor.execute("SELECT * FROM Room")
+        rooms = cursor.fetchall()
+        mongo_db.rooms.insert_many([dict(r) for r in rooms])
+
+        cursor.execute("SELECT * FROM Screening")
+        screenings = cursor.fetchall()
+        mongo_db.screenings.insert_many([dict(s) for s in screenings])
+
+        cursor.execute("SELECT * FROM Customer")
+        customers = cursor.fetchall()
+        mongo_customers = []
+        for cust in customers:
+            cust_doc = dict(cust)
+            birth_date = cust_doc.get('BirthDate')
+
+            cust_doc.pop('BirthDate', None)
+            
+            if birth_date is None:
+                cust_doc['birthDate'] = None
+            elif isinstance(birth_date, date):
+                cust_doc['birthDate'] = datetime.combine(birth_date, datetime.min.time())
+            elif isinstance(birth_date, datetime):
+                cust_doc['birthDate'] = birth_date 
+            elif isinstance(birth_date, str):
+                try:
+                    if len(birth_date) == 10:  
+                        cust_doc['birthDate'] = datetime.strptime(birth_date, '%Y-%m-%d')
+                    else:
+                        cust_doc['birthDate'] = datetime.strptime(birth_date, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    cust_doc['birthDate'] = None 
+            else:
+                cust_doc['birthDate'] = None 
+            
+            mongo_customers.append(cust_doc)
+
+        if mongo_customers:
+            mongo_db.customers.insert_many(mongo_customers)
+
+        cursor.execute("SELECT * FROM Ticket")
+        tickets = cursor.fetchall()
+        mongo_tickets = []
+        for ticket in tickets:
+            ticket_doc = dict(ticket)
+            if 'Price' in ticket_doc:
+                ticket_doc['price'] = float(ticket_doc['Price'])
+                ticket_doc.pop('Price', None)
+            mongo_tickets.append(ticket_doc)
+        if mongo_tickets:
+            mongo_db.tickets.insert_many(mongo_tickets)
+
+        cursor.execute("SELECT WorkerID, RoomID FROM handles")
+        assignments = cursor.fetchall()
+        mongo_assignments = [
+            {"workerID": a['WorkerID'], "roomID": a['RoomID'], "assignedAt": datetime.utcnow()}
+            for a in assignments
+        ]
+        if mongo_assignments:
+            mongo_db.assignments.insert_many(mongo_assignments)
+
+        cursor.close()
+        sql_conn.close()
+        mongo_client.close()
+
+        return jsonify({"message": "Migration successful! All collections populated from MariaDB."})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+#ende
+
+
+#neu
+@app.route('/mongo-status')
+def mongo_status():
+    try:
+        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
+        db = mongo_client['cinema']
+
+        counts = {
+            "employees": db.employees.count_documents({}),
+            "movies": db.movies.count_documents({}),
+            "rooms": db.rooms.count_documents({}),
+            "screenings": db.screenings.count_documents({}),
+            "customers": db.customers.count_documents({}),
+            "tickets": db.tickets.count_documents({}),
+            "assignments": db.assignments.count_documents({})
+        }
+
+        mongo_client.close()
+
+        return render_template('mongo_status.html', counts=counts)
+
+    except Exception as e:
+        return f"<h1>Error: {str(e)}</h1>"
+#ende
+
+#neu
+@app.route('/mongo-collection/<collection_name>')
+def mongo_collection(collection_name):
+    try:
+        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
+        db = mongo_client['cinema']
+
+        if collection_name not in ['employees', 'movies', 'rooms', 'screenings', 'customers', 'tickets', 'assignments']:
+            return "<h2>Invalid collection!</h2><a href='/mongo-status'>Back</a>", 400
+
+        docs = list(db[collection_name].find().limit(1000))
+
+        return render_template('mongo_collection.html', 
+                               collection_name=collection_name, 
+                               docs=docs)
+
+    except Exception as e:
+        return f"<h1>Error: {str(e)}</h1>"
+    finally:
+        mongo_client.close()
 #ende
 
 if __name__ == '__main__':
