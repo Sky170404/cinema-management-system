@@ -1,15 +1,18 @@
-version: '3'
+#version: '3'
 services:
   db:
     image: mariadb:latest
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: cinema
+    
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: cinema
+      MARIADB_USER: heidi_user
+      MARIADB_PASSWORD: heidi_pass
     volumes:
       - ./db-init:/docker-entrypoint-initdb.d 
     ports:
-      - "3306:3306"
+      - "3308:3306" 
 
   app:
     build: .
@@ -20,6 +23,16 @@ services:
       - db
     environment:
       DB_HOST: db
+      DB_PORT: 3306 
       DB_USER: root
       DB_PASSWORD: root
       DB_NAME: cinema
+
+  mongo:
+      image: mongo:latest
+      restart: always
+      ports:
+        - "28017:27017"
+      environment:
+        MONGO_INITDB_ROOT_USERNAME: root
+        MONGO_INITDB_ROOT_PASSWORD: root
