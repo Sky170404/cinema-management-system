@@ -1,5 +1,5 @@
 from analytic_service import AnalyticService
-from db_utils import get_db_connection
+from db_utils import get_db_connection, get_mongo_db
 from data_service import run_data_generation
 from flask import Flask, render_template, jsonify, request,redirect
 import pymysql
@@ -284,11 +284,10 @@ def manager_login():
 @app.route('/migrate-to-mongo', methods=['POST'])
 def migrate_to_mongo():
     try:
-        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
-        mongo_db = mongo_client['cinema']
+        mongo_client, db = get_mongo_db()
 
-        for collection_name in mongo_db.list_collection_names():
-            mongo_db.drop_collection(collection_name)
+        for collection_name in db.list_collection_names():
+            db.drop_collection(collection_name)
 
         sql_conn = get_db_connection()
         cursor = sql_conn.cursor()
@@ -325,7 +324,7 @@ def migrate_to_mongo():
                 doc["workingHours"] = emp['WorkingHours']
             mongo_employees.append(doc)
         if mongo_employees:
-            mongo_db.employees.insert_many(mongo_employees)
+            db.employees.insert_many(mongo_employees)
 
         cursor.execute("SELECT * FROM Movie")
         movies = cursor.fetchall()
@@ -334,15 +333,15 @@ def migrate_to_mongo():
             trailers = cursor.fetchall()
             movie_doc = dict(movie)
             movie_doc["trailers"] = trailers
-            mongo_db.movies.insert_one(movie_doc)
+            db.movies.insert_one(movie_doc)
 
         cursor.execute("SELECT * FROM Room")
         rooms = cursor.fetchall()
-        mongo_db.rooms.insert_many([dict(r) for r in rooms])
+        db.rooms.insert_many([dict(r) for r in rooms])
 
         cursor.execute("SELECT * FROM Screening")
         screenings = cursor.fetchall()
-        mongo_db.screenings.insert_many([dict(s) for s in screenings])
+        db.screenings.insert_many([dict(s) for s in screenings])
 
         cursor.execute("SELECT * FROM Customer")
         customers = cursor.fetchall()
@@ -373,7 +372,7 @@ def migrate_to_mongo():
             mongo_customers.append(cust_doc)
 
         if mongo_customers:
-            mongo_db.customers.insert_many(mongo_customers)
+            db.customers.insert_many(mongo_customers)
 
         cursor.execute("SELECT * FROM Ticket")
         tickets = cursor.fetchall()
@@ -385,7 +384,7 @@ def migrate_to_mongo():
                 ticket_doc.pop('Price', None)
             mongo_tickets.append(ticket_doc)
         if mongo_tickets:
-            mongo_db.tickets.insert_many(mongo_tickets)
+            db.tickets.insert_many(mongo_tickets)
 
         cursor.execute("SELECT WorkerID, RoomID FROM handles")
         assignments = cursor.fetchall()
@@ -394,7 +393,7 @@ def migrate_to_mongo():
             for a in assignments
         ]
         if mongo_assignments:
-            mongo_db.assignments.insert_many(mongo_assignments)
+            db.assignments.insert_many(mongo_assignments)
 
         cursor.close()
         sql_conn.close()
@@ -412,8 +411,7 @@ def migrate_to_mongo():
 @app.route('/mongo-status')
 def mongo_status():
     try:
-        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
-        db = mongo_client['cinema']
+        mongo_client, db = get_mongo_db()
 
         counts = {
             "employees": db.employees.count_documents({}),
@@ -437,8 +435,7 @@ def mongo_status():
 @app.route('/mongo-collection/<collection_name>')
 def mongo_collection(collection_name):
     try:
-        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
-        db = mongo_client['cinema']
+        mongo_client, db = get_mongo_db()
 
         if collection_name not in ['employees', 'movies', 'rooms', 'screenings', 'customers', 'tickets', 'assignments']:
             return "<h2>Invalid collection!</h2><a href='/mongo-status'>Back</a>", 400
@@ -526,8 +523,7 @@ def save_trailer():
 def movie_management_mongo():
     emp_id = request.args.get('employee_id')
     try:
-        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
-        db = mongo_client['cinema']
+        mongo_client, db = get_mongo_db()
 
         movies = list(db.movies.find({}, {"MovieID": 1, "Title": 1, "AgeRating": 1, "trailers": 1}))
         mongo_client.close()
@@ -537,8 +533,8 @@ def movie_management_mongo():
 @app.route('/add-trailer-form-mongo/<int:movie_id>')
 def add_trailer_form_mongo(movie_id):
     try:
-        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
-        db = mongo_client['cinema']
+        mongo_client, db = get_mongo_db()
+
         movie = db.movies.find_one({"MovieID": movie_id})
         # We still fetch employees from SQL for the dropdown as per teammate's migration logic
         sql_conn = get_db_connection()
@@ -561,8 +557,7 @@ def save_trailer_mongo():
     # emp_id is received to satisfy the use case, but not stored in the denormalized movie doc
 
     try:
-        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
-        db = mongo_client['cinema']
+        mongo_client, db = get_mongo_db()
 
         existing = db.movies.find_one({"MovieID": movie_id, "trailers.URL": url})
         if existing:
