@@ -1,3 +1,4 @@
+from analytic_service import AnalyticService
 from db_utils import get_db_connection
 from data_service import run_data_generation
 from flask import Flask, render_template, jsonify, request,redirect
@@ -527,7 +528,7 @@ def movie_management_mongo():
     try:
         mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
         db = mongo_client['cinema']
-        # Analytics in NoSQL: No Joins! Just fetch the documents.
+
         movies = list(db.movies.find({}, {"MovieID": 1, "Title": 1, "AgeRating": 1, "trailers": 1}))
         mongo_client.close()
         return render_template('movie_management_mongo.html', movies=movies, employee_id=emp_id)
@@ -563,22 +564,17 @@ def save_trailer_mongo():
         mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
         db = mongo_client['cinema']
 
-        # 1. Validation: Ensure uniqueness within the embedded trailers array
         existing = db.movies.find_one({"MovieID": movie_id, "trailers.URL": url})
         if existing:
             mongo_client.close()
             return f"<h1>NoSQL Error</h1><p>This trailer URL already exists in MongoDB.</p><a href='/movie-management-mongo'>Back</a>"
 
-        # 2. Prepare the embedded document
-        # In NoSQL we don't need to generate a serial ID, but we keep it for schema consistency
         new_trailer = {
             "TrailerID": random.randint(10000, 99999),
             "URL": url,
             "Description": description
         }
 
-        # 3. Update the Movie document by pushing to the trailers array
-        # This is an atomic operation in MongoDB
         db.movies.update_one(
             {"MovieID": movie_id},
             {"$push": {"trailers": new_trailer}}
@@ -594,6 +590,24 @@ def save_trailer_mongo():
 # --- END NOSQL ROUTES ---
 # --- END MANAGEMENT ROUTES ---
 
+# --- PROMOTIONAL ANALYTICS ROUTES ---
+@app.route('/promotional-analytics-sql')
+def analytics_sql():
+    emp_id = request.args.get('employee_id', 1)
+    try:
+        results = AnalyticService.get_sql_report(emp_id)
+        return render_template('analytics.html', results=results, type='SQL', employee_id=emp_id)
+    except Exception as e:
+        return f"<h1>SQL Analytics Error</h1><p>{str(e)}</p>", 500
+
+@app.route('/promotional-analytics-nosql')
+def analytics_nosql():
+    emp_id = request.args.get('employee_id', 1)
+    try:
+        results = AnalyticService.get_nosql_report(emp_id)
+        return render_template('analytics.html', results=results, type='NoSQL', employee_id=emp_id)
+    except Exception as e:
+        return f"<h1>NoSQL Analytics Error</h1><p>{str(e)}</p>", 500
 
 
 if __name__ == '__main__':
