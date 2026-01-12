@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NoSQL Movie Management</title>
+    <style>
+        body { background: #141414; color: white; font-family: Arial; padding: 20px; }
+        h1 { color: #47a248; text-align: center; }
+        .movie-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .movie-table th, .movie-table td { border: 1px solid #333; padding: 12px; text-align: left; }
+        .movie-table th { background: #47a248; }
+        .movie-table tr:nth-child(even) { background: #221f1f; }
+        .btn-add { background: #47a248; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <h1>NoSQL Promotional Management (MongoDB)</h1>
+    <p style="text-align:center;">Data is being read directly from the 'movies' collection.</p>
+
+    <table class="movie-table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Age Rating</th>
+                <th>Trailer Count (Embedded)</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for movie in movies %}
+            <tr>
+                <td>{{ movie.Title }}</td>
+                <td>{{ movie.AgeRating }}</td>
+                <td><strong>{{ movie.trailers|length }}</strong></td>
+                <td>
+                    <a href="/add-trailer-form-mongo/{{ movie.MovieID }}" class="btn-add">Add Trailer</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <br>
+    <a href="/"><button style="background:#333; color:white; padding:10px;">Back Home</button></a>
+</body>
+</html>

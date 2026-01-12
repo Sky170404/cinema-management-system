@@ -9,8 +9,11 @@
         table { width:100%; border-collapse:collapse; margin:20px 0; }
         th, td { padding:10px; border:1px solid #333; text-align:left; vertical-align:top; }
         th { background:#e50914; }
-        pre { background:#221f1f; padding:10px; border-radius:4px; overflow:auto; }
+        pre { background:#221f1f; padding:10px; border-radius:4px; overflow:auto; margin: 0; }
         .back { text-align:center; margin:30px; }
+        button { background:#e50914; color:white; padding:10px 20px; border:none; border-radius:4px; cursor:pointer; margin: 0 10px; }
+        button:hover { background:#f40612; }
+        a { text-decoration: none; }
     </style>
 </head>
 <body>
@@ -25,9 +28,18 @@
             </tr>
             {% for doc in docs %}
                 <tr>
-                    {% for value in doc.values() %}
+                    {% for key, value in doc.items() %}
                         <td>
-                            {% if value is mapping or value is iterable and not value is string %}
+                            {% if key == 'trailers' and value is iterable and value is not string %}
+                                <ul style="margin: 0; padding-left: 20px;">
+                                    {% for trailer in value %}
+                                        <li style="margin-bottom: 8px;">
+                                            {{ trailer.Description }}
+                                            <small style="color: #888;">(ID: {{ trailer.TrailerID }})</small>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            {% elif value is mapping or (value is iterable and value is not string) %}
                                 <pre>{{ value | tojson(indent=2) }}</pre>
                             {% else %}
                                 {{ value }}
@@ -38,7 +50,7 @@
             {% endfor %}
         </table>
     {% else %}
-        <p>No documents in this collection.</p>
+        <p style="text-align: center;">No documents in this collection.</p>
     {% endif %}
 
     <div class="back">

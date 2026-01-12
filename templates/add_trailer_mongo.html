@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add NoSQL Trailer</title>
+    <style>
+        body { background: #141414; color: white; font-family: Arial; text-align: center; padding: 50px; }
+        .card { background: #221f1f; padding: 30px; border-radius: 8px; display: inline-block; text-align: left; width: 400px; border-top: 4px solid #47a248; }
+        input, textarea, select { width: 100%; padding: 10px; margin: 10px 0; border-radius: 4px; border: 1px solid #444; background: #333; color: white; }
+        .btn-save { background: #47a248; color: white; border: none; padding: 12px; cursor: pointer; width: 100%; font-weight: bold; }
+        .cancel { color: #888; text-decoration: none; display: block; text-align: center; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <h1>Add NoSQL Trailer for: {{ movie.Title }}</h1>
+    <div class="card">
+        <form action="/save-trailer-mongo" method="POST">
+            <input type="hidden" name="movie_id" value="{{ movie.MovieID }}">
+
+            <label>Employee (Marketing):</label>
+            <select name="employee_id" required>
+                {% for emp in employees %}
+                <option value="{{ emp.EmployeeID }}">{{ emp.Name }}</option>
+                {% endfor %}
+            </select>
+
+            <label>Trailer URL:</label>
+            <input type="text" name="url" placeholder="https://youtube.com/..." required>
+
+            <label>Description:</label>
+            <textarea name="description" placeholder="Exciting new trailer description..." rows="3"></textarea>
+
+            <button type="submit" class="btn-save">Save Trailer</button>
+        </form>
+        <a href="/movie-management-mongo" class="cancel">Cancel</a>
+    </div>
+</body>
+</html>

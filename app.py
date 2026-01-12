@@ -1,147 +1,44 @@
+from db_utils import get_db_connection
+from data_service import run_data_generation
 from flask import Flask, render_template, jsonify, request,redirect
 import pymysql
 from faker import Faker
 import random
 from datetime import datetime, timedelta, date
-
+from pymongo import MongoClient
 app = Flask(__name__)
-
-DB_HOST = 'db'
-DB_PORT = 3306
-DB_USER = 'root'
-DB_PASSWORD = 'root'
-DB_NAME = 'cinema'
-
 fake = Faker()
-
-#def get_db_connection():
-    #return pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, db=DB_NAME, cursorclass=pymysql.cursors.DictCursor)
-def get_db_connection():
-    try:
-        conn = pymysql.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            db=DB_NAME,
-            cursorclass=pymysql.cursors.DictCursor
-        )
-        print("Connected to DB successfully!")
-        return conn
-    except Exception as e:
-        print("DB connection failed:", e)
-        raise
-
 @app.route('/')
 def index():
-    return render_template('index.html')
-
-@app.route('/import', methods=['POST'])
-def import_data():
     conn = get_db_connection()
     cursor = conn.cursor()
+    employees = []
     try:
-        delete_order = ['Ticket', 'Trailer', 'handles', 'employs', 'Screening', 'Customer', 'Movie', 'Room', 'Manager', 'Worker', 'Employee']
-        for table in delete_order:
-            cursor.execute(f"DELETE FROM {table}")
-
-        for i in range(1, 11):
-            cursor.execute("""
-                INSERT INTO Employee (EmployeeID, Name, Salary, Email)
-                VALUES (%s, %s, %s, %s)
-            """, (i, fake.name(), round(random.uniform(2000, 5000), 2), fake.email()))
-
-        for i in range(1, 6):
-            cursor.execute("""
-                INSERT INTO Manager (EmployeeID, LeadershipExperience, Department)
-                VALUES (%s, %s, %s)
-            """, (i, f"{random.randint(3,15)} years", random.choice(['Operations', 'HR', 'Technical'])))
-
-        for i in range(6, 11):
-            cursor.execute("""
-                INSERT INTO Worker (EmployeeID, Position, WorkingHours)
-                VALUES (%s, %s, %s)
-            """, (i, random.choice(['Cleaner', 'Technician', 'Usher']), random.randint(20,40)))
-
-        for i in range(1, 11):
-            cursor.execute("""
-                INSERT INTO Movie (MovieID, Title, Description, AgeRating, ThumbnailURL, ReleaseYear)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (i, fake.sentence(nb_words=5)[:-1], fake.paragraph(), random.choice(['0+', '6+', '12+', '16+', '18+']), fake.image_url(), random.randint(2015,2025)))
-
-        for i in range(1, 6):
-            cursor.execute("""
-                INSERT INTO Room (RoomID, Capacity, ScreeningType)
-                VALUES (%s, %s, %s)
-            """, (i, random.randint(80,250), random.choice(['2D', '3D', 'IMAX', '4D'])))
-
-        screening_id = 1
-        for movie_id in range(1, 11):
-            for _ in range(random.randint(3,8)):
-                room_id = random.randint(1,5)
-                showtime = datetime.now() + timedelta(days=random.randint(-10,15), hours=random.randint(10,23))
-                available_seats = random.randint(20, 250)
-                cursor.execute("""
-                    INSERT INTO Screening (ScreeningID, MovieID, RoomID, Showtime, AvailableSeats)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (screening_id, movie_id, room_id, showtime, available_seats))
-                screening_id += 1
-
-        for movie_id in range(1, 11):
-            num_trailers = random.randint(1,4)
-            for trailer_id in range(1, num_trailers + 1):
-                cursor.execute("""
-                    INSERT INTO Trailer (MovieID, TrailerID, URL, Description)
-                    VALUES (%s, %s, %s, %s)
-                """, (movie_id, trailer_id, fake.url(), fake.sentence()))
-
-        for i in range(1, 16):
-            payment = random.choice(['creditcard', 'PayPal', 'cash'])
-            cursor.execute("""
-                INSERT INTO Customer (CustomerID, Name, BirthDate, PaymentReference)
-                VALUES (%s, %s, %s, %s)
-            """, (i, fake.name(), fake.date_of_birth(minimum_age=16, maximum_age=90), payment))
-
-        ticket_id = 1
-        cursor.execute("SELECT ScreeningID, AvailableSeats FROM Screening")
-        screenings = cursor.fetchall()
-        for screening in screenings:
-            screening_id = screening['ScreeningID']
-            max_seats = screening['AvailableSeats'] or 100 
-            num_tickets = random.randint(0, min(40, max_seats))
-            used_seats = set()
-            for _ in range(num_tickets):
-                while True:
-                    seat = random.randint(1, max_seats)
-                    if seat not in used_seats:
-                        used_seats.add(seat)
-                        break
-                price = round(random.uniform(8.5, 20.0), 2)
-                customer_id = random.randint(1, 15)
-                cursor.execute("""
-                    INSERT INTO Ticket (TicketID, ScreeningID, Price, Seat, CustomerID)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (ticket_id, screening_id, price, seat, customer_id))
-                ticket_id += 1
-
-        for worker_id in range(6,11):
-            rooms = random.sample(range(1,6), random.randint(1,4))
-            for room_id in rooms:
-                cursor.execute("""
-                    INSERT IGNORE INTO handles (WorkerID, RoomID)
-                    VALUES (%s, %s)
-                """, (worker_id, room_id))
-
-        conn.commit()
-        return jsonify({"message": "Data imported successfully! All tables cleared and filled with new random data."})
-
+        query = """
+                SELECT e.EmployeeID, e.Name, 
+                COALESCE(w.Position, m.Department, 'Staff') as RoleInfo
+                FROM Employee e
+                LEFT JOIN Manager m ON e.EmployeeID = m.EmployeeID
+                LEFT JOIN Worker w ON e.EmployeeID = w.EmployeeID
+                ORDER BY e.Name
+                """
+        cursor.execute(query)
+        employees = cursor.fetchall()
     except Exception as e:
-        conn.rollback()
-        return jsonify({"error": str(e)}), 500
+        print(f"Index query failed (possibly empty DB): {e}")
     finally:
         cursor.close()
         conn.close()
+    return render_template('index.html', employees=employees)
 
+@app.route('/generate', methods=['POST'])
+def generate_data():
+    try:
+        result = run_data_generation()
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 @app.route('/status')
 def status():
     return '''
@@ -380,7 +277,8 @@ def manager_login():
 #ende
 
 #neuSQL
-from pymongo import MongoClient
+
+
 
 @app.route('/migrate-to-mongo', methods=['POST'])
 def migrate_to_mongo():
@@ -395,13 +293,18 @@ def migrate_to_mongo():
         cursor = sql_conn.cursor()
 
         cursor.execute("""
-            SELECT e.EmployeeID, e.Name, e.Salary, e.Email,
-                   m.LeadershipExperience, m.Department,
-                   w.Position, w.WorkingHours
-            FROM Employee e
-            LEFT JOIN Manager m ON e.EmployeeID = m.EmployeeID
-            LEFT JOIN Worker w ON e.EmployeeID = w.EmployeeID
-        """)
+                       SELECT e.EmployeeID,
+                              e.Name,
+                              e.Salary,
+                              e.Email,
+                              m.LeadershipExperience,
+                              m.Department,
+                              w.Position,
+                              w.WorkingHours
+                       FROM Employee e
+                                LEFT JOIN Manager m ON e.EmployeeID = m.EmployeeID
+                                LEFT JOIN Worker w ON e.EmployeeID = w.EmployeeID
+                       """)
         employees = cursor.fetchall()
         mongo_employees = []
         for emp in employees:
@@ -448,24 +351,24 @@ def migrate_to_mongo():
             birth_date = cust_doc.get('BirthDate')
 
             cust_doc.pop('BirthDate', None)
-            
+
             if birth_date is None:
                 cust_doc['birthDate'] = None
             elif isinstance(birth_date, date):
                 cust_doc['birthDate'] = datetime.combine(birth_date, datetime.min.time())
             elif isinstance(birth_date, datetime):
-                cust_doc['birthDate'] = birth_date 
+                cust_doc['birthDate'] = birth_date
             elif isinstance(birth_date, str):
                 try:
-                    if len(birth_date) == 10:  
+                    if len(birth_date) == 10:
                         cust_doc['birthDate'] = datetime.strptime(birth_date, '%Y-%m-%d')
                     else:
                         cust_doc['birthDate'] = datetime.strptime(birth_date, '%Y-%m-%d %H:%M:%S')
                 except ValueError:
-                    cust_doc['birthDate'] = None 
+                    cust_doc['birthDate'] = None
             else:
-                cust_doc['birthDate'] = None 
-            
+                cust_doc['birthDate'] = None
+
             mongo_customers.append(cust_doc)
 
         if mongo_customers:
@@ -500,8 +403,9 @@ def migrate_to_mongo():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-#ende
 
+
+# ende
 
 #neu
 @app.route('/mongo-status')
@@ -549,6 +453,148 @@ def mongo_collection(collection_name):
     finally:
         mongo_client.close()
 #ende
+
+# --- MOVIE & TRAILER MANAGEMENT (USE CASE & ANALYTICS) ---
+@app.route('/movie-management')
+def movie_management():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    message = request.args.get('message')
+    emp_id = request.args.get('employee_id')
+    try:
+        # Query combines Movie list with Trailer counts (Analytics functionality)
+        query = """
+                SELECT m.MovieID, m.Title, m.AgeRating, COUNT(t.TrailerID) as TrailerCount
+                FROM Movie m
+                         LEFT JOIN Trailer t ON m.MovieID = t.MovieID
+                GROUP BY m.MovieID, m.Title, m.AgeRating
+                ORDER BY m.Title ASC \
+                """
+        cursor.execute(query)
+        movies = cursor.fetchall()
+        return render_template('movie_management.html', movies=movies, message=message, employee_id=emp_id)
+    finally:
+        cursor.close()
+        conn.close()
+@app.route('/add-trailer-form/<int:movie_id>')
+def add_trailer_form(movie_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT MovieID, Title FROM Movie WHERE MovieID = %s", (movie_id,))
+        movie = cursor.fetchone()
+        cursor.execute("SELECT EmployeeID, Name FROM Employee ORDER BY Name")
+        employees = cursor.fetchall()
+        return render_template('add_trailer.html', movie=movie, employees=employees)
+    finally:
+        cursor.close()
+        conn.close()
+@app.route('/save-trailer', methods=['POST'])
+def save_trailer():
+    movie_id = request.form.get('movie_id')
+    url = request.form.get('url')
+    description = request.form.get('description')
+    emp_id = request.form.get('employee_id')  # Precondition: Employee must be involved
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Backend logic 2: Ensure URL uniqueness for this movie
+        cursor.execute("SELECT * FROM Trailer WHERE MovieID = %s AND URL = %s", (movie_id, url))
+        if cursor.fetchone():
+            return f"<h1>Error</h1><p>This trailer URL already exists for this movie.</p><a href='/add-trailer-form/{movie_id}'>Try again</a>"
+        # Backend logic 3: Generate unique TrailerID (Max+1)
+        cursor.execute("SELECT COALESCE(MAX(TrailerID), 0) + 1 as next_id FROM Trailer WHERE MovieID = %s",
+                       (movie_id,))
+        next_id = cursor.fetchone()['next_id']
+        # Backend logic 4: Create record
+        cursor.execute("""
+                       INSERT INTO Trailer (MovieID, TrailerID, URL, Description)
+                       VALUES (%s, %s, %s, %s)
+                       """, (movie_id, next_id, url, description))
+        conn.commit()
+        return redirect('/movie-management?message=Trailer+Added+Successfully')
+    except Exception as e:
+        conn.rollback()
+        return f"<h1>Database Error</h1><p>{str(e)}</p>"
+    finally:
+        cursor.close()
+        conn.close()
+
+# --- NOSQL USE CASE: MONGODB TRAILER MANAGEMENT ---
+@app.route('/movie-management-mongo')
+def movie_management_mongo():
+    emp_id = request.args.get('employee_id')
+    try:
+        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
+        db = mongo_client['cinema']
+        # Analytics in NoSQL: No Joins! Just fetch the documents.
+        movies = list(db.movies.find({}, {"MovieID": 1, "Title": 1, "AgeRating": 1, "trailers": 1}))
+        mongo_client.close()
+        return render_template('movie_management_mongo.html', movies=movies, employee_id=emp_id)
+    except Exception as e:
+        return f"<h1>Mongo Error</h1><p>{str(e)}</p>"
+@app.route('/add-trailer-form-mongo/<int:movie_id>')
+def add_trailer_form_mongo(movie_id):
+    try:
+        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
+        db = mongo_client['cinema']
+        movie = db.movies.find_one({"MovieID": movie_id})
+        # We still fetch employees from SQL for the dropdown as per teammate's migration logic
+        sql_conn = get_db_connection()
+        cursor = sql_conn.cursor()
+        cursor.execute("SELECT EmployeeID, Name FROM Employee ORDER BY Name")
+        employees = cursor.fetchall()
+        cursor.close()
+        sql_conn.close()
+        mongo_client.close()
+        return render_template('add_trailer_mongo.html', movie=movie, employees=employees)
+    except Exception as e:
+        return f"<h1>Error</h1><p>{str(e)}</p>"
+
+
+@app.route('/save-trailer-mongo', methods=['POST'])
+def save_trailer_mongo():
+    movie_id = int(request.form.get('movie_id'))
+    url = request.form.get('url')
+    description = request.form.get('description')
+    # emp_id is received to satisfy the use case, but not stored in the denormalized movie doc
+
+    try:
+        mongo_client = MongoClient('mongodb://root:root@mongo:27017/')
+        db = mongo_client['cinema']
+
+        # 1. Validation: Ensure uniqueness within the embedded trailers array
+        existing = db.movies.find_one({"MovieID": movie_id, "trailers.URL": url})
+        if existing:
+            mongo_client.close()
+            return f"<h1>NoSQL Error</h1><p>This trailer URL already exists in MongoDB.</p><a href='/movie-management-mongo'>Back</a>"
+
+        # 2. Prepare the embedded document
+        # In NoSQL we don't need to generate a serial ID, but we keep it for schema consistency
+        new_trailer = {
+            "TrailerID": random.randint(10000, 99999),
+            "URL": url,
+            "Description": description
+        }
+
+        # 3. Update the Movie document by pushing to the trailers array
+        # This is an atomic operation in MongoDB
+        db.movies.update_one(
+            {"MovieID": movie_id},
+            {"$push": {"trailers": new_trailer}}
+        )
+
+        mongo_client.close()
+        return redirect('/movie-management-mongo?message=Trailer+Added+to+NoSQL')
+    except Exception as e:
+        return f"<h1>MongoDB Save Error</h1><p>{str(e)}</p>"
+    finally:
+        if 'mongo_client' in locals():
+            mongo_client.close()
+# --- END NOSQL ROUTES ---
+# --- END MANAGEMENT ROUTES ---
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
