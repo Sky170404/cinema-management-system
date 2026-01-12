@@ -6,6 +6,23 @@ from datetime import datetime, timedelta, date
 
 fake = Faker()
 
+REAL_MOVIES = [
+    {"title": "Inception", "desc": "A thief who steals corporate secrets through the use of dream-sharing technology.", "rating": "12+", "year": 2010},
+    {"title": "The Dark Knight", "desc": "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham.", "rating": "16+", "year": 2008},
+    {"title": "Interstellar", "desc": "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.", "rating": "12+", "year": 2014},
+    {"title": "The Matrix", "desc": "A computer hacker learns from mysterious rebels about the true nature of his reality.", "rating": "16+", "year": 1999},
+    {"title": "Toy Story", "desc": "A cowboy doll is profoundly threatened and jealous when a new spaceman figure supplants him.", "rating": "0+", "year": 1995},
+    {"title": "Pulp Fiction", "desc": "The lives of two mob hitmen, a boxer, a gangster and his wife intertwine in four tales.", "rating": "18+", "year": 1994},
+    {"title": "Spirited Away", "desc": "A young girl wanders into a world ruled by gods, witches, and spirits.", "rating": "6+", "year": 2001},
+    {"title": "Parasite", "desc": "Greed and class discrimination threaten the newly formed symbiotic relationship between families.", "rating": "16+", "year": 2019},
+    {"title": "Dune: Part Two", "desc": "Paul Atreides unites with Chani and the Fremen while on a warpath of revenge.", "rating": "12+", "year": 2024},
+    {"title": "The Lion King", "desc": "A young lion prince is cast out of his pride by his cruel uncle.", "rating": "0+", "year": 1994}
+]
+
+REAL_TRAILERS = [
+    "Official Teaser", "Main Trailer", "Final Trailer", "Behind the Scenes", "Director's Cut Preview", "IMAX Special Look"
+]
+
 def run_data_generation():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -33,13 +50,12 @@ def run_data_generation():
                            VALUES (%s, %s, %s)
                            """, (i, random.choice(['Cleaner', 'Technician', 'Marketing']), random.randint(20, 40)))
 
-        for i in range(1, 11):
+        for i, movie in enumerate(REAL_MOVIES, 1):
             cursor.execute("""
                            INSERT INTO Movie (MovieID, Title, Description, AgeRating, ThumbnailURL, ReleaseYear)
                            VALUES (%s, %s, %s, %s, %s, %s)
-                           """, (i, fake.sentence(nb_words=5)[:-1], fake.paragraph(),
-                                 random.choice(['0+', '6+', '12+', '16+', '18+']), fake.image_url(),
-                                 random.randint(2015, 2025)))
+                           """, (i, movie['title'], movie['desc'], movie['rating'],
+                                 f"https://picsum.photos/seed/{movie['title']}/400/600", movie['year']))
 
         for i in range(1, 6):
             cursor.execute("""
@@ -61,11 +77,14 @@ def run_data_generation():
 
         for movie_id in range(1, 11):
             num_trailers = random.randint(1, 4)
-            for trailer_id in range(1, num_trailers + 1):
+            selected_trailers = random.sample(REAL_TRAILERS, num_trailers)
+            for trailer_id, trailer_desc in enumerate(selected_trailers, 1):
                 cursor.execute("""
                                INSERT INTO Trailer (MovieID, TrailerID, URL, Description)
                                VALUES (%s, %s, %s, %s)
-                               """, (movie_id, trailer_id, fake.url(), fake.sentence()))
+                               """,
+                               (movie_id, trailer_id, f"https://www.youtube.com/watch?v={fake.lexify('???????????')}",
+                                trailer_desc))
 
         for i in range(1, 16):
             payment = random.choice(['creditcard', 'PayPal', 'cash'])
