@@ -446,7 +446,7 @@ def save_trailer_mongo():
     movie_id = int(request.form.get('movie_id'))
     url = request.form.get('url')
     description = request.form.get('description')
-
+    emp_id = request.form.get('employee_id')
     try:
         mongo_client, db = get_mongo_db()
 
