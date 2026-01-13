@@ -1,6 +1,6 @@
 from analytic_service import AnalyticService
 from db_utils import get_db_connection, get_mongo_db
-from data_service import run_data_generation
+from data_service import run_data_generation, run_mongo_migration
 from flask import Flask, render_template, jsonify, request,redirect
 from faker import Faker
 import random
@@ -289,123 +289,8 @@ def manager_login():
 @app.route('/migrate-to-mongo', methods=['POST'])
 def migrate_to_mongo():
     try:
-        mongo_client, db = get_mongo_db()
-
-        for collection_name in db.list_collection_names():
-            db.drop_collection(collection_name)
-
-        sql_conn = get_db_connection()
-        cursor = sql_conn.cursor()
-
-        cursor.execute("""
-                       SELECT e.EmployeeID,
-                              e.Name,
-                              e.Salary,
-                              e.Email,
-                              m.LeadershipExperience,
-                              m.Department,
-                              w.Position,
-                              w.WorkingHours
-                       FROM Employee e
-                                LEFT JOIN Manager m ON e.EmployeeID = m.EmployeeID
-                                LEFT JOIN Worker w ON e.EmployeeID = w.EmployeeID
-                       """)
-        employees = cursor.fetchall()
-        mongo_employees = []
-        for emp in employees:
-            doc = {
-                "employeeID": emp['EmployeeID'],
-                "name": emp['Name'],
-                "salary": float(emp['Salary']),
-                "email": emp['Email'],
-            }
-            if emp['LeadershipExperience']:
-                doc["role"] = "Manager"
-                doc["leadershipExperience"] = emp['LeadershipExperience']
-                doc["department"] = emp['Department']
-            else:
-                doc["role"] = "Worker"
-                doc["position"] = emp['Position']
-                doc["workingHours"] = emp['WorkingHours']
-            mongo_employees.append(doc)
-        if mongo_employees:
-            db.employees.insert_many(mongo_employees)
-
-        cursor.execute("SELECT * FROM Movie")
-        movies = cursor.fetchall()
-        for movie in movies:
-            cursor.execute("SELECT TrailerID, URL, Description FROM Trailer WHERE MovieID = %s", (movie['MovieID'],))
-            trailers = cursor.fetchall()
-            movie_doc = dict(movie)
-            movie_doc["trailers"] = trailers
-            db.movies.insert_one(movie_doc)
-
-        cursor.execute("SELECT * FROM Room")
-        rooms = cursor.fetchall()
-        db.rooms.insert_many([dict(r) for r in rooms])
-
-        cursor.execute("SELECT * FROM Screening")
-        screenings = cursor.fetchall()
-        db.screenings.insert_many([dict(s) for s in screenings])
-
-        cursor.execute("SELECT * FROM Customer")
-        customers = cursor.fetchall()
-        mongo_customers = []
-        for cust in customers:
-            cust_doc = dict(cust)
-            birth_date = cust_doc.get('BirthDate')
-
-            cust_doc.pop('BirthDate', None)
-
-            if birth_date is None:
-                cust_doc['birthDate'] = None
-            elif isinstance(birth_date, date):
-                cust_doc['birthDate'] = datetime.combine(birth_date, datetime.min.time())
-            elif isinstance(birth_date, datetime):
-                cust_doc['birthDate'] = birth_date
-            elif isinstance(birth_date, str):
-                try:
-                    if len(birth_date) == 10:
-                        cust_doc['birthDate'] = datetime.strptime(birth_date, '%Y-%m-%d')
-                    else:
-                        cust_doc['birthDate'] = datetime.strptime(birth_date, '%Y-%m-%d %H:%M:%S')
-                except ValueError:
-                    cust_doc['birthDate'] = None
-            else:
-                cust_doc['birthDate'] = None
-
-            mongo_customers.append(cust_doc)
-
-        if mongo_customers:
-            db.customers.insert_many(mongo_customers)
-
-        cursor.execute("SELECT * FROM Ticket")
-        tickets = cursor.fetchall()
-        mongo_tickets = []
-        for ticket in tickets:
-            ticket_doc = dict(ticket)
-            if 'Price' in ticket_doc:
-                ticket_doc['price'] = float(ticket_doc['Price'])
-                ticket_doc.pop('Price', None)
-            mongo_tickets.append(ticket_doc)
-        if mongo_tickets:
-            db.tickets.insert_many(mongo_tickets)
-
-        cursor.execute("SELECT WorkerID, RoomID FROM handles")
-        assignments = cursor.fetchall()
-        mongo_assignments = [
-            {"workerID": a['WorkerID'], "roomID": a['RoomID'], "assignedAt": datetime.utcnow()}
-            for a in assignments
-        ]
-        if mongo_assignments:
-            db.assignments.insert_many(mongo_assignments)
-
-        cursor.close()
-        sql_conn.close()
-        mongo_client.close()
-
-        return jsonify({"message": "Migration successful! All collections populated from MariaDB."})
-
+        result = run_mongo_migration()
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -589,6 +474,9 @@ def save_trailer_mongo():
             mongo_client.close()
 # --- END NOSQL ROUTES ---
 # --- END MANAGEMENT ROUTES ---
+
+
+
 
 # --- PROMOTIONAL ANALYTICS ROUTES ---
 @app.route('/promotional-analytics-sql')
