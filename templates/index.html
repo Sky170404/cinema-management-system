@@ -62,7 +62,9 @@
                 <label for="employeeSelect" style="margin-right: 10px;">Logged in as:</label>
                 <select id="employeeSelect" style="padding: 8px; border-radius: 4px; background: #333; color: white; border: 1px solid #e50914;">
                     {% for emp in employees %}
-                    <option value="{{ emp.EmployeeID }}">{{ emp.Name }} ({{ emp.RoleInfo }})</option>
+                     <option value="{{ emp.EmployeeID }}" {% if emp.EmployeeID|string == request.args.get('employee_id') %}selected{% endif %}>
+                            {{ emp.Name }} ({{ emp.RoleInfo }})
+                     </option>
                     {% endfor %}
                 </select>
             </div>
@@ -79,7 +81,7 @@
                 </div>
 
                 <div style="margin-bottom: 20px;">
-                    <button class="btn btn-secondary" onclick="window.location.href='/movie-management'">Movie Management</button>
+                    <button class="btn btn-secondary" onclick="navigateTo('/movie-management')">Movie Management</button>
                     <button class="btn btn-secondary" onclick="window.location.href='/manager-login'">Cleaning Assignment (Manager Login)</button>
                 </div>
 
@@ -92,11 +94,11 @@
                 </div>
 
                 <div style="margin-bottom: 20px;">
-                    <button class="btn" style="background-color: #47a248;" onclick="window.location.href='/mongo-status'">Show Collections</button>
+                    <button class="btn" style="background-color: #47a248;" onclick="navigateTo('/mongo-status')">Show Collections</button>
                 </div>
 
                 <div>
-                    <button class="btn" style="background-color: #2e7d32;" onclick="window.location.href='/movie-management-mongo'">Movie Management Mongo</button>
+                    <button class="btn" style="background-color: #2e7d32;" onclick="navigateTo('/movie-management-mongo')">Movie Management Mongo</button>
                 </div>
                 <div>
                     <button class="btn" style="background-color: #47a248;" onclick="navigateTo('/promotional-analytics-nosql')">Promotional Analytics NoSQL</button>

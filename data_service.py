@@ -39,16 +39,18 @@ def run_data_generation():
                            """, (i, fake.name(), round(random.uniform(2000, 5000), 2), fake.email()))
 
         for i in range(1, 6):
+            dept = 'Marketing' if i == 1 else random.choice(['Operations', 'HR', 'Technical'])
             cursor.execute("""
                            INSERT INTO Manager (EmployeeID, LeadershipExperience, Department)
                            VALUES (%s, %s, %s)
-                           """, (i, f"{random.randint(3, 15)} years", random.choice(['Operations', 'HR', 'Technical'])))
+                           """, (i, f"{random.randint(3, 15)} years", dept))
 
         for i in range(6, 11):
+            pos = 'Marketing' if i == 6 else random.choice(['Cleaner', 'Technician', 'Usher'])
             cursor.execute("""
                            INSERT INTO Worker (EmployeeID, Position, WorkingHours)
                            VALUES (%s, %s, %s)
-                           """, (i, random.choice(['Cleaner', 'Technician', 'Marketing']), random.randint(20, 40)))
+                           """, (i, pos, random.randint(20, 40)))
 
         for i, movie in enumerate(REAL_MOVIES, 1):
             cursor.execute("""

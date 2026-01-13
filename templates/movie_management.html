@@ -34,13 +34,15 @@
                 <td>{{ movie.AgeRating }}</td>
                 <td><strong>{{ movie.TrailerCount }}</strong></td>
                 <td>
-                    <a href="/add-trailer-form/{{ movie.MovieID }}" class="btn-add">Add Trailer</a>
+                    <a href="/add-trailer-form/{{ movie.MovieID }}?employee_id={{ employee_id }}" class="btn-add">Add Trailer</a>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     <br>
-    <button class="back-btn" onclick="window.location.href='/'">Back to Home</button>
+    <div style="text-align: center; margin-top: 20px;">
+        <button class="back-btn" onclick="window.location.href='/?employee_id={{ employee_id }}'">Back to Home</button>
+    </div>
 </body>
 </html>

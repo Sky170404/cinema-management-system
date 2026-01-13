@@ -7,6 +7,9 @@ from faker import Faker
 import random
 from datetime import datetime, timedelta, date
 from pymongo import MongoClient
+
+from employee_service import EmployeeService
+
 app = Flask(__name__)
 fake = Faker()
 @app.route('/')
@@ -42,6 +45,7 @@ def generate_data():
         return jsonify({"error": str(e)}), 500
 @app.route('/status')
 def status():
+    emp_id = request.args.get('employee_id', '')
     return '''
     <!DOCTYPE html>
     <html lang="de">
@@ -57,6 +61,7 @@ def status():
             .card h3 { color: #e50914; margin: 0 0 15px 0; }
             .btn { background: #e50914; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
             .btn:hover { background: #f40612; }
+            .back-btn {{ background: #333; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-top: 20px; }}
             a { text-decoration: none; }
             .back { text-align: center; margin: 40px 0; }
         </style>
@@ -77,7 +82,7 @@ def status():
                 <div class="card"><h3>Ticket</h3><a href="/table/Ticket"><button class="btn">Show</button></a></div>
                 <div class="card"><h3>handles</h3><a href="/table/handles"><button class="btn">Show</button></a></div>
             </div>
-            <div class="back"><a href="/"><button class="btn">← Back to start</button></a></div>
+            <div class="back"><button class="back-btn" onclick="window.location.href='/?employee_id={emp_id}'">Back to Home</button></div>
         </div>
     </body>
     </html>
@@ -86,6 +91,7 @@ def status():
 
 @app.route('/table/<table_name>')
 def show_table(table_name):
+    emp_id = request.args.get('employee_id', '')
     allowed_tables = ['Employee', 'Manager', 'Worker', 'Movie', 'Trailer', 'Room', 'Screening', 'Customer', 'Ticket', 'handles']
     if table_name not in allowed_tables:
         return "<h2 style='color:#e50914;'>invalid table!</h2><a href='/status'>Back</a>", 400
@@ -129,8 +135,8 @@ def show_table(table_name):
             <h1>{table_name} – {count} Entries</h1>
             {table_html}
             <div class="back">
-                <a href="/status"><button class="btn">← Back to overview</button></a>
-                <a href="/"><button class="btn">← back to main page</button></a>
+                <a href="/status?employee_id={emp_id}"><button class="btn">← Back to overview</button></a>
+                <button class="back-btn" onclick="window.location.href='/?employee_id={emp_id}'">Back to Home</button>
             </div>
         </body></html>
         '''
@@ -410,6 +416,7 @@ def migrate_to_mongo():
 #neu
 @app.route('/mongo-status')
 def mongo_status():
+    emp_id = request.args.get('employee_id')
     try:
         mongo_client, db = get_mongo_db()
 
@@ -425,7 +432,7 @@ def mongo_status():
 
         mongo_client.close()
 
-        return render_template('mongo_status.html', counts=counts)
+        return render_template('mongo_status.html', counts=counts, employee_id=emp_id)
 
     except Exception as e:
         return f"<h1>Error: {str(e)}</h1>"
@@ -434,6 +441,7 @@ def mongo_status():
 #neu
 @app.route('/mongo-collection/<collection_name>')
 def mongo_collection(collection_name):
+    emp_id = request.args.get('employee_id')
     try:
         mongo_client, db = get_mongo_db()
 
@@ -444,7 +452,7 @@ def mongo_collection(collection_name):
 
         return render_template('mongo_collection.html', 
                                collection_name=collection_name, 
-                               docs=docs)
+                               docs=docs, employee_id=emp_id)
 
     except Exception as e:
         return f"<h1>Error: {str(e)}</h1>"
@@ -459,6 +467,10 @@ def movie_management():
     cursor = conn.cursor()
     message = request.args.get('message')
     emp_id = request.args.get('employee_id')
+
+    if not EmployeeService.is_marketing_staff(emp_id):
+        return "<h1>Access Denied</h1><p>Restricted to Marketing team.</p><a href='/'>Back Home</a>", 403
+
     try:
         # Query combines Movie list with Trailer counts (Analytics functionality)
         query = """
@@ -481,9 +493,7 @@ def add_trailer_form(movie_id):
     try:
         cursor.execute("SELECT MovieID, Title FROM Movie WHERE MovieID = %s", (movie_id,))
         movie = cursor.fetchone()
-        cursor.execute("SELECT EmployeeID, Name FROM Employee ORDER BY Name")
-        employees = cursor.fetchall()
-        return render_template('add_trailer.html', movie=movie, employees=employees)
+        return render_template('add_trailer.html', movie=movie)
     finally:
         cursor.close()
         conn.close()
@@ -510,7 +520,7 @@ def save_trailer():
                        VALUES (%s, %s, %s, %s)
                        """, (movie_id, next_id, url, description))
         conn.commit()
-        return redirect('/movie-management?message=Trailer+Added+Successfully')
+        return redirect(f'/movie-management?message=Trailer+Added+Successfully&employee_id={emp_id}')
     except Exception as e:
         conn.rollback()
         return f"<h1>Database Error</h1><p>{str(e)}</p>"
@@ -522,6 +532,10 @@ def save_trailer():
 @app.route('/movie-management-mongo')
 def movie_management_mongo():
     emp_id = request.args.get('employee_id')
+
+    if not EmployeeService.is_marketing_staff(emp_id):
+        return "<h1>Access Denied</h1><p>Restricted to Marketing team.</p><a href='/'>Back Home</a>", 403
+
     try:
         mongo_client, db = get_mongo_db()
 
@@ -536,15 +550,8 @@ def add_trailer_form_mongo(movie_id):
         mongo_client, db = get_mongo_db()
 
         movie = db.movies.find_one({"MovieID": movie_id})
-        # We still fetch employees from SQL for the dropdown as per teammate's migration logic
-        sql_conn = get_db_connection()
-        cursor = sql_conn.cursor()
-        cursor.execute("SELECT EmployeeID, Name FROM Employee ORDER BY Name")
-        employees = cursor.fetchall()
-        cursor.close()
-        sql_conn.close()
         mongo_client.close()
-        return render_template('add_trailer_mongo.html', movie=movie, employees=employees)
+        return render_template('add_trailer_mongo.html', movie=movie)
     except Exception as e:
         return f"<h1>Error</h1><p>{str(e)}</p>"
 
@@ -554,7 +561,6 @@ def save_trailer_mongo():
     movie_id = int(request.form.get('movie_id'))
     url = request.form.get('url')
     description = request.form.get('description')
-    # emp_id is received to satisfy the use case, but not stored in the denormalized movie doc
 
     try:
         mongo_client, db = get_mongo_db()
@@ -576,7 +582,7 @@ def save_trailer_mongo():
         )
 
         mongo_client.close()
-        return redirect('/movie-management-mongo?message=Trailer+Added+to+NoSQL')
+        return redirect(f'/movie-management-mongo?message=Trailer+Added+to+NoSQL&employee_id={emp_id}')
     except Exception as e:
         return f"<h1>MongoDB Save Error</h1><p>{str(e)}</p>"
     finally:
@@ -589,6 +595,10 @@ def save_trailer_mongo():
 @app.route('/promotional-analytics-sql')
 def analytics_sql():
     emp_id = request.args.get('employee_id', 1)
+
+    if not EmployeeService.is_marketing_staff(emp_id):
+        return "<h1>Access Denied</h1><p>Restricted to Marketing team.</p><a href='/'>Back Home</a>", 403
+
     try:
         results = AnalyticService.get_sql_report(emp_id)
         return render_template('analytics.html', results=results, type='SQL', employee_id=emp_id)
@@ -598,6 +608,10 @@ def analytics_sql():
 @app.route('/promotional-analytics-nosql')
 def analytics_nosql():
     emp_id = request.args.get('employee_id', 1)
+
+    if not EmployeeService.is_marketing_staff(emp_id):
+        return "<h1>Access Denied</h1><p>Restricted to Marketing team.</p><a href='/'>Back Home</a>", 403
+
     try:
         results = AnalyticService.get_nosql_report(emp_id)
         return render_template('analytics.html', results=results, type='NoSQL', employee_id=emp_id)
