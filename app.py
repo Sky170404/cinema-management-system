@@ -6,6 +6,7 @@ from faker import Faker
 import random
 from datetime import datetime, timedelta, date
 from employee_service import EmployeeService
+from usecase_service import UsecaseService
 
 app = Flask(__name__)
 fake = Faker()
@@ -356,7 +357,7 @@ def movie_management():
         return "<h1>Access Denied</h1><p>Restricted to Marketing team.</p><a href='/'>Back Home</a>", 403
 
     try:
-        # Query combines Movie list with Trailer counts (Analytics functionality)
+        # Query combines Movie with Trailer counts
         query = """
                 SELECT m.MovieID, m.Title, m.AgeRating, COUNT(t.TrailerID) as TrailerCount
                 FROM Movie m
@@ -386,19 +387,19 @@ def save_trailer():
     movie_id = request.form.get('movie_id')
     url = request.form.get('url')
     description = request.form.get('description')
-    emp_id = request.form.get('employee_id')  # Precondition: Employee must be involved
+    emp_id = request.form.get('employee_id')
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Backend logic 2: Ensure URL uniqueness for this movie
+        # Ensure URL uniqueness for this movie
         cursor.execute("SELECT * FROM Trailer WHERE MovieID = %s AND URL = %s", (movie_id, url))
         if cursor.fetchone():
             return f"<h1>Error</h1><p>This trailer URL already exists for this movie.</p><a href='/add-trailer-form/{movie_id}'>Try again</a>"
-        # Backend logic 3: Generate unique TrailerID (Max+1)
+        # Generate unique TrailerID (Max+1)
         cursor.execute("SELECT COALESCE(MAX(TrailerID), 0) + 1 as next_id FROM Trailer WHERE MovieID = %s",
                        (movie_id,))
         next_id = cursor.fetchone()['next_id']
-        # Backend logic 4: Create record
+        # Create record
         cursor.execute("""
                        INSERT INTO Trailer (MovieID, TrailerID, URL, Description)
                        VALUES (%s, %s, %s, %s)
@@ -482,29 +483,50 @@ def save_trailer_mongo():
 @app.route('/promotional-analytics-sql')
 def analytics_sql():
     emp_id = request.args.get('employee_id', 1)
-
+    rating = request.args.get('rating')
     if not EmployeeService.is_marketing_staff(emp_id):
         return "<h1>Access Denied</h1><p>Restricted to Marketing team.</p><a href='/'>Back Home</a>", 403
 
     try:
-        results = AnalyticService.get_sql_report(emp_id)
-        return render_template('analytics.html', results=results, type='SQL', employee_id=emp_id)
+        results = AnalyticService.get_sql_report(emp_id, rating)
+        return render_template('analytics.html', results=results, type='SQL', employee_id=emp_id, current_rating=rating)
     except Exception as e:
         return f"<h1>SQL Analytics Error</h1><p>{str(e)}</p>", 500
 
 @app.route('/promotional-analytics-nosql')
 def analytics_nosql():
     emp_id = request.args.get('employee_id', 1)
-
+    rating = request.args.get('rating')
     if not EmployeeService.is_marketing_staff(emp_id):
         return "<h1>Access Denied</h1><p>Restricted to Marketing team.</p><a href='/'>Back Home</a>", 403
 
     try:
-        results = AnalyticService.get_nosql_report(emp_id)
-        return render_template('analytics.html', results=results, type='NoSQL', employee_id=emp_id)
+        results = AnalyticService.get_nosql_report(emp_id, rating)
+        return render_template('analytics.html', results=results, type='NoSQL', employee_id=emp_id, current_rating=rating)
     except Exception as e:
         return f"<h1>NoSQL Analytics Error</h1><p>{str(e)}</p>", 500
 
+
+@app.route('/run-use-case', methods=['POST'])
+def run_use_case():
+    emp_id = request.args.get('employee_id')
+    db_type = request.args.get('type')  # SQL or NoSQL
+    rating = request.args.get('rating', '').strip()
+
+    #Ensure empty strings from the frontend are treated as None
+    if not rating:
+        rating = None
+
+    if not EmployeeService.is_marketing_staff(emp_id):
+        return jsonify({"error": "Restricted to Marketing team."}), 403
+
+    try:
+        result = UsecaseService.run_marketing_use_case(db_type, rating)
+        if "error" in result:
+            return jsonify(result), 400
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

@@ -2,11 +2,17 @@ from db_utils import get_db_connection, get_mongo_db
 
 class AnalyticService:
     @staticmethod
-    def get_sql_report(emp_id):
+    def get_sql_report(emp_id, rating_filter=None):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            query = """
+            where_clause = ""
+            params = [emp_id]
+            if rating_filter:
+                where_clause = " AND m.AgeRating = %s "
+                params.append(rating_filter)
+
+            query = f"""
                 SELECT
                     m.MovieID,
                     m.Title AS MovieTitle,
@@ -19,21 +25,20 @@ class AnalyticService:
                     Trailer t ON t.MovieID = m.MovieID
                 JOIN
                     Employee e ON e.EmployeeID = %s
-                WHERE
-                    m.AgeRating IN ('12+', '16+', '18+')
+                WHERE 1=1 {where_clause}
                 GROUP BY
                     m.MovieID, m.Title, m.AgeRating, e.Name
                 ORDER BY
                     TrailerCount DESC
             """
-            cursor.execute(query, (emp_id,))
+            cursor.execute(query, tuple(params))
             return cursor.fetchall()
         finally:
             cursor.close()
             conn.close()
 
     @staticmethod
-    def get_nosql_report(emp_id):
+    def get_nosql_report(emp_id, rating_filter=None):
         client, db = get_mongo_db()
         try:
             # Get Context name from SQL
@@ -45,9 +50,11 @@ class AnalyticService:
             sql_cursor.close()
             sql_conn.close()
 
-            # MongoDB Aggregation Pipeline
-            pipeline = [
-                {"$match": {"AgeRating": {"$in": ['12+', '16+', '18+']}}},
+            pipeline = []
+            if rating_filter:
+                pipeline.append({"$match": {"AgeRating": rating_filter}})
+
+            pipeline.extend([
                 {"$project": {
                     "MovieID": 1,
                     "MovieTitle": "$Title",
@@ -57,7 +64,7 @@ class AnalyticService:
                 }},
                 {"$match": {"TrailerCount": {"$gt": 0}}},
                 {"$sort": {"TrailerCount": -1}}
-            ]
+            ])
             return list(db.movies.aggregate(pipeline))
         finally:
             client.close()
