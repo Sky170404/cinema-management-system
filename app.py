@@ -2,12 +2,9 @@ from analytic_service import AnalyticService
 from db_utils import get_db_connection, get_mongo_db
 from data_service import run_data_generation
 from flask import Flask, render_template, jsonify, request,redirect
-import pymysql
 from faker import Faker
 import random
 from datetime import datetime, timedelta, date
-from pymongo import MongoClient
-
 from employee_service import EmployeeService
 
 app = Flask(__name__)
@@ -43,33 +40,35 @@ def generate_data():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
 @app.route('/status')
 def status():
     emp_id = request.args.get('employee_id', '')
-    return '''
-    <!DOCTYPE html>
-    <html lang="de">
-    <head>
-        <meta charset="UTF-8">
-        <title>Database-state</title>
-        <style>
-            body { background-color: #141414; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 20px; }
-            h1 { color: #e50914; text-align: center; }
-            .container { max-width: 1200px; margin: 0 auto; }
-            .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 40px; }
-            .card { background: #221f1f; padding: 20px; border-radius: 8px; text-align: center; }
-            .card h3 { color: #e50914; margin: 0 0 15px 0; }
-            .btn { background: #e50914; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-            .btn:hover { background: #f40612; }
-            .back-btn {{ background: #333; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-top: 20px; }}
-            a { text-decoration: none; }
-            .back { text-align: center; margin: 40px 0; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>Datenbank-state</h1>
-            <p style="text-align:center;">Klick on an entity to reveal its data</p>
+    return f'''
+       <!DOCTYPE html>
+       <html lang="de">
+       <head>
+           <meta charset="UTF-8">
+           <title>SQL Database Tables</title>
+           <style>
+               body {{ background-color: #141414; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 20px; }}
+               h1 {{ color: #e50914; text-align: center; }}
+               .container {{ max-width: 1200px; margin: 0 auto; }}
+               .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 40px; }}
+               .card {{ background: #221f1f; padding: 20px; border-radius: 8px; text-align: center; }}
+               .card h3 {{ color: #e50914; margin: 0 0 15px 0; }}
+               .btn {{ background: #e50914; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }}
+               .btn:hover {{ background: #f40612; }}
+               .back-btn {{ background: #333; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-top: 20px; }}
+               a {{ text-decoration: none; }}
+               .back {{ text-align: center; margin: 40px 0; }}
+           </style>
+       </head>
+       <body>
+           <div class="container">
+            <h1>SQL Database Tables</h1>
+            <p style="text-align:center;">Click on an entity to reveal its data</p>
             <div class="grid">
                 <div class="card"><h3>Employee</h3><a href="/table/Employee"><button class="btn">Show</button></a></div>
                 <div class="card"><h3>Manager</h3><a href="/table/Manager"><button class="btn">Show</button></a></div>

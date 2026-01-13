@@ -70,14 +70,14 @@
             </div>
             {% else %}
             <div style="text-align: center; margin-bottom: 30px; color: #888;">
-                <p>No database records were found. Please use <strong>Import Randomized Data</strong> to begin.</p>
+                <p>No database records were found. Please use <strong>Generate Randomized Data</strong> to begin.</p>
             </div>
             {% endif %}
 
             <nav>
                 <div style="margin-bottom: 20px;">
                     <button class="btn" onclick="generateData()">Generate Randomized Data</button>
-                    <button class="btn" onclick="window.location.href='/status'">SQL Tables</button>
+                    <button class="btn" onclick="navigateTo('/status')">SQL Tables</button>
                 </div>
 
                 <div style="margin-bottom: 20px;">
