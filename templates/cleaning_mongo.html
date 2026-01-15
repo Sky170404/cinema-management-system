@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Cleaning Assignment – NoSQL (MongoDB)</title>
+    <style>
+        body { background:#141414; color:#fff; font-family:Arial; padding:20px; }
+        h1, h2 { color:#47a248; }
+        .container { max-width:1200px; margin:0 auto; }
+        select, button { padding:10px; margin:10px 0; font-size:16px; width:100%; max-width:400px; }
+        button { background:#47a248; color:white; border:none; border-radius:4px; cursor:pointer; }
+        button:hover { background:#47a248; }
+        table { width:100%; border-collapse:collapse; margin:20px 0; }
+        th, td { padding:10px; border:1px solid #333; text-align:left; }
+        th { background:#47a248; }
+        .message { color:#0f0; font-weight:bold; margin:20px 0; }
+        .back { margin:30px 0; }
+        .filter-buttons button { width:auto; margin-right:10px; }
+        label { font-size:1.2em; margin-right:10px; }
+        #positionTableFilter {
+            background:#221f1f;
+            color:white;
+            border:1px solid #47a248;
+            border-radius:4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="color:#2e7d32; text-align:center;">{{ page_title }}</h1>
+
+        <p style="text-align:center; color:#ccc; font-style:italic; margin-bottom:30px;">
+                {{ data_source_info }}
+        </p>
+
+        <p style="text-align:center; font-size:1.3em; margin:0;"> 
+            Welcome, <strong>{{ manager_name }}</strong>!
+        </p>
+
+        {% if message %}
+            <p class="message">{{ message }}</p>
+        {% endif %}
+
+        <h2>Rooms which need service after screenings</h2>
+        <form method="POST">
+            <label for="room">Select Room:</label>
+            <select name="room" id="room" required>
+                {% for room in rooms %}
+                        <option value="{{ room.RoomID }}">Room {{ room.RoomID }} ({{ room.ScreeningType }}, Capacity: {{ room.Capacity }})</option>
+                    {% endfor %}
+            </select><br>
+
+            <label for="workers">Select Workers:</label>
+            <select name="workers" id="workers" multiple size="8" required>
+                {% for worker in workers %}
+                    <option value="{{ worker.employeeID }}">{{ worker.name }} ({{ worker.position }})</option>
+                {% endfor %}
+            </select><br>
+
+            <button type="submit">Assign Workers</button>
+        </form>
+
+        <h2>Filter Workers by their Position (for assignment)</h2>
+        <div class="filter-buttons">
+            <select id="position_filter" onchange="window.location.href='/cleaning-michelle-mongo?position=' + this.value + '&employee_id=' + '{{ employee_id }}'">
+                <option value="">All Positions</option>
+                <option value="Cleaner" {% if position_filter == 'Cleaner' %}selected{% endif %}>Cleaner</option>
+                <option value="Technician" {% if position_filter == 'Technician' %}selected{% endif %}>Technician</option>
+                <option value="Usher" {% if position_filter == 'Usher' %}selected{% endif %}>Usher</option>
+            </select>
+        </div>
+
+        <h2>Current Worker Workload Report (only assigned workers)</h2>
+
+        <div style="margin: 20px 0; text-align: center;">
+            <label for="positionTableFilter">Filter table by Position:</label>
+            <select id="positionTableFilter" onchange="filterTable()">
+                <option value="">All Positions</option>
+                <option value="Cleaner">Cleaner</option>
+                <option value="Technician">Technician</option>
+                <option value="Usher">Usher</option>
+            </select>
+        </div>
+
+        <table id="workloadTable">
+            <tr>
+                <th>Worker Name(denormalized:Manager & Worker combined)</th>
+                <th>Position</th>
+                <th>Assigned Rooms (Count)</th>
+                <th>Assigned Rooms (List)</th>
+                <th>Working Hours</th>
+                <th>Delete from Room</th>
+            </tr>
+            {% for row in workload %}
+                <tr>
+                    <td>{{ row.Name }}</td>
+                    <td>{{ row.Position }}</td>
+                    <td>{{ row.assigned_count }}</td>
+                    <td>{{ row.assigned_rooms_list or 'None' }}</td>
+                    <td>{{ row.WorkingHours }}</td>
+                    <td>
+                        {% if row.assigned_count > 0 %}
+                            <form method="POST" style="margin:0;">
+                                <input type="hidden" name="delete_worker" value="{{ row.EmployeeID }}">
+                                <select name="delete_room" required>
+                                    {% for r in row.assigned_rooms_list.split(',') %}
+                                        <option value="{{ r }}">Room {{ r }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" name="delete" onclick="return confirm('Delete this assignment?')">Delete</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </table>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <button class="btn" style="background: #333;" onclick="window.location.href='/?employee_id={{ employee_id }}'">Back to Home</button>
+        </div>
+    </div>
+
+    <script>
+    function filterTable() {
+        const filter = document.getElementById("positionTableFilter").value.toLowerCase();
+        const table = document.getElementById("workloadTable");
+        const trs = table.getElementsByTagName("tr");
+
+        for (let i = 1; i < trs.length; i++) { 
+            const positionCell = trs[i].getElementsByTagName("td")[1];  
+            if (positionCell) {
+                const positionText = positionCell.textContent || positionCell.innerText;
+                if (filter === "" || positionText.toLowerCase().includes(filter)) {
+                    trs[i].style.display = "";
+                } else {
+                    trs[i].style.display = "none";
+                }
+            }
+        }
+    }
+    </script>
+</body>
+</html>

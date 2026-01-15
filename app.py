@@ -153,7 +153,7 @@ def show_table(table_name):
         conn.close()
 
 
-#Use case 1 for selecting Workers to Rooms
+# --- CLEANING MANAGEMENT (USE CASE & ANALYTICS) ---
 @app.route('/cleaning-michelle', methods=['GET', 'POST'])
 def cleaning_assignment_michelle():
     emp_id = request.args.get('employee_id')
@@ -187,7 +187,7 @@ def cleaning_assignment_michelle():
             if 'delete' in request.form:
                 worker_id = request.form['delete_worker']
                 room_id = request.form['delete_room']
-                cursor.execute("DELETE FROM handles WHERE WorkerID = %s AND RoomID = %s", (worker_id, room_id))
+                cursor.execute("DELETE FROM handles WHERE WorkerID = %s AND roomID = %s", (worker_id, room_id))
                 conn.commit()
                 message = f"Zuweisung Worker {worker_id} → Room {room_id} entfernt!"
             else:
@@ -267,8 +267,140 @@ def check_cleaning_access():
     return jsonify({"access": True, "redirect": f"/cleaning-michelle?employee_id={emp_id}"})
 
 
+# --- NOSQL USE CASE: MONGODB CLEANING MANAGEMENT ---
+@app.route('/cleaning-michelle-mongo', methods=['GET', 'POST'])
+def cleaning_assignment_mongo():
+    emp_id = request.args.get('employee_id')
+
+    if not emp_id or not EmployeeService.is_manager(emp_id):
+        return """
+        <h1 style="color:#e50914; text-align:center;">Access Denied</h1>
+        <p style="text-align:center;">This page is restricted to Managers only.</p>
+        <p style="text-align:center;">Please select a Manager from the dropdown on the home page.</p>
+        <div style="text-align:center; margin-top:30px;">
+            <a href="/" style="color:#e50914; text-decoration:none;">
+                <button class="btn" style="padding:12px 24px;">← Back to Home</button>
+            </a>
+        </div>
+        """, 403
+
+    mongo_client, db = get_mongo_db()
+    message = None
+    manager_name = "Manager"
+
+    page_title = "NoSQL Cleaning Assigment (MongoDB)"
+    data_source_info = "Data is being read and written directly from the 'employees', 'assignments', 'rooms' and 'screenings' collections."
+
+    try:
+        # get name of the manager
+        manager_doc = db.employees.find_one({"employeeID": int(emp_id)})
+        manager_name = manager_doc.get('name', 'Manager') if manager_doc else "Manager (ID not found)"
+
+        if request.method == 'POST':
+            if 'delete' in request.form:
+                worker_id = int(request.form['delete_worker'])
+                room_id = int(request.form['delete_room'])
+                result = db.assignments.delete_one({"workerID": worker_id, "roomID": room_id})
+                message = "Assignment removed!" if result.deleted_count > 0 else "No Assigment found."
+            else:
+                room_id = int(request.form['room'])
+                worker_ids = [int(w) for w in request.form.getlist('workers')]
+                assigned_count = 0
+                for worker_id in worker_ids:
+                    if not db.assignments.find_one({"workerID": worker_id, "roomID": room_id}):
+                        db.assignments.insert_one({
+                            "workerID": worker_id,
+                            "roomID": room_id,
+                            "assignedAt": datetime.utcnow()
+                        })
+                        assigned_count += 1
+                message = f"{assigned_count} Worker to room {room_id} assigned!"
+
+        position_filter = request.args.get('position', '')
+
+        #find rooms which are finished with screenings
+        finished_room_ids = db.screenings.distinct(
+            "RoomID",
+            {"Showtime": {"$lt": datetime.utcnow()}}
+        )
+
+        rooms = list(
+            db.rooms.find(
+                {"RoomID": {"$in": finished_room_ids}},
+                {
+                    "_id": 0,
+                    "RoomID": 1,
+                    "Capacity": 1,
+                    "ScreeningType": 1
+                }
+            ).sort("RoomID", 1)
+        )
+
+        # Workers
+        workers_query = {"role": "Worker", "position": {"$in": ["Cleaner", "Technician", "Usher"]}}
+        if position_filter:
+            workers_query["position"] = position_filter
+        workers = list(db.employees.find(workers_query, {"employeeID": 1, "name": 1, "position": 1}).sort("name", 1))
+
+        workload = list(db.assignments.aggregate([
+            {"$group": {
+                "_id": "$workerID",
+                "assigned_rooms": {"$addToSet": "$roomID"},
+                "assigned_count": {"$sum": 1}
+            }},
+            {"$match": {"assigned_count": {"$gt": 0}}},
+            {"$lookup": {
+                "from": "employees",
+                "localField": "_id",
+                "foreignField": "employeeID",
+                "as": "worker"
+            }},
+            {"$unwind": "$worker"},
+            {"$match": {
+                "worker.position": {"$in": ["Cleaner", "Technician", "Usher"]}
+            }},
+            {"$project": {
+                "Name": "$worker.name",
+                "Position": "$worker.position",
+                "EmployeeID": "$_id",
+                "assigned_rooms_list": {
+                    "$reduce": {
+                        "input": "$assigned_rooms",
+                        "initialValue": "",
+                        "in": {
+                            "$concat": [
+                                "$$value",
+                                {"$cond": [{"$eq": ["$$value", ""]}, "", ", "]},
+                                {"$toString": "$$this"}
+                            ]
+                        }
+                    }
+                },
+                "assigned_count": "$assigned_count",
+                "WorkingHours": "$worker.workingHours"
+            }},
+            {"$sort": {"assigned_count": -1}}
+        ]))
+
+        return render_template('cleaning_mongo.html', 
+                               rooms=rooms, 
+                               workers=workers, 
+                               workload=workload, 
+                               message=message, 
+                               position_filter=position_filter,
+                               employee_id=emp_id,
+                               manager_name=manager_name,
+                               page_title=page_title,
+                               data_source_info=data_source_info)
+
+    except Exception as e:
+        print(f"NoSQL Cleaning error: {str(e)}")
+        return f"<h1>Error: {str(e)}</h1><p>Check Docker logs!</p>", 500
+    finally:
+        mongo_client.close()
 
 
+# --- NOSQL SETUP ---
 @app.route('/migrate-to-mongo', methods=['POST'])
 def migrate_to_mongo():
     try:
@@ -277,10 +409,6 @@ def migrate_to_mongo():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# ende
-
-#neu
 @app.route('/mongo-status')
 def mongo_status():
     emp_id = request.args.get('employee_id')
@@ -303,9 +431,8 @@ def mongo_status():
 
     except Exception as e:
         return f"<h1>Error: {str(e)}</h1>"
-#ende
 
-#neu
+
 @app.route('/mongo-collection/<collection_name>')
 def mongo_collection(collection_name):
     emp_id = request.args.get('employee_id')
@@ -325,7 +452,7 @@ def mongo_collection(collection_name):
         return f"<h1>Error: {str(e)}</h1>"
     finally:
         mongo_client.close()
-#ende
+
 
 # --- MOVIE & TRAILER MANAGEMENT (USE CASE & ANALYTICS) ---
 @app.route('/movie-management')
