@@ -25,3 +25,27 @@ class EmployeeService:
         finally:
             cursor.close()
             conn.close()
+
+            
+
+    @staticmethod
+    def is_manager(emp_id):
+        """Checks if the employee is a Manager (has entry in Manager table)."""
+        if not emp_id:
+            return False
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            query = """
+                SELECT e.EmployeeID
+                FROM Employee e
+                JOIN Manager m ON e.EmployeeID = m.EmployeeID
+                WHERE e.EmployeeID = %s
+            """
+            cursor.execute(query, (emp_id,))
+            result = cursor.fetchone()
+            return result is not None
+        finally:
+            cursor.close()
+            conn.close()

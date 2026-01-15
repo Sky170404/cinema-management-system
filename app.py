@@ -17,12 +17,18 @@ def index():
     employees = []
     try:
         query = """
-                SELECT e.EmployeeID, e.Name, 
-                COALESCE(w.Position, m.Department, 'Staff') as RoleInfo
-                FROM Employee e
-                LEFT JOIN Manager m ON e.EmployeeID = m.EmployeeID
-                LEFT JOIN Worker w ON e.EmployeeID = w.EmployeeID
-                ORDER BY e.Name
+                SELECT 
+                        e.EmployeeID, 
+                        e.Name, 
+                        CASE 
+                            WHEN m.EmployeeID IS NOT NULL THEN 'Manager'
+                            WHEN w.EmployeeID IS NOT NULL THEN w.Position
+                            ELSE 'Staff'
+                        END as RoleInfo
+                    FROM Employee e
+                    LEFT JOIN Manager m ON e.EmployeeID = m.EmployeeID
+                    LEFT JOIN Worker w ON e.EmployeeID = w.EmployeeID
+                    ORDER BY e.Name
                 """
         cursor.execute(query)
         employees = cursor.fetchall()
@@ -147,23 +153,32 @@ def show_table(table_name):
         conn.close()
 
 
-#neu
+#Use case 1 for selecting Workers to Rooms
 @app.route('/cleaning-michelle', methods=['GET', 'POST'])
 def cleaning_assignment_michelle():
+    emp_id = request.args.get('employee_id')
+    
+    if not emp_id or not EmployeeService.is_manager(emp_id):
+        return """
+        <h1 style="color:#e50914; text-align:center;">Access Denied</h1>
+        <p style="text-align:center;">This page is restricted to Managers only.</p>
+        <div style="text-align:center; margin-top:30px;">
+            <a href="/" style="color:#e50914; text-decoration:none;">
+                <button class="btn" style="padding:12px 24px;">← Back to Home</button>
+            </a>
+        </div>
+        """, 403
+
     conn = None
     cursor = None
     message = None
-    manager_name = "Manager" 
+    manager_name = "Manager"
 
     try:
-        manager_id = request.args.get('manager_id')
-        if not manager_id:
-            return redirect('/manager-login')
-
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT Name FROM Employee WHERE EmployeeID = %s", (manager_id,))
+        cursor.execute("SELECT Name FROM Employee WHERE EmployeeID = %s", (emp_id,))
         manager_row = cursor.fetchone()
         if manager_row:
             manager_name = manager_row['Name']
@@ -217,6 +232,7 @@ def cleaning_assignment_michelle():
             JOIN Employee e ON w.EmployeeID = e.EmployeeID
             LEFT JOIN handles h ON w.EmployeeID = h.WorkerID
             GROUP BY w.EmployeeID
+            HAVING assigned_count > 0 
             ORDER BY assigned_count DESC
         """)
         workload = cursor.fetchall() or []
@@ -227,7 +243,6 @@ def cleaning_assignment_michelle():
                                workload=workload, 
                                message=message, 
                                position_filter=position_filter,
-                               manager_id=manager_id,
                                manager_name=manager_name)
 
     except Exception as e:
@@ -240,50 +255,17 @@ def cleaning_assignment_michelle():
         if conn:
             conn.close()
 
-#neu für use case anmeldung
-@app.route('/manager-login', methods=['GET', 'POST'])
-def manager_login():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        message = None
 
-        if request.method == 'POST':
-            employee_id = request.form.get('employee_id')
-            if not employee_id:
-                message = "Bitte wählen Sie einen Manager aus!"
-            else:
-                cursor.execute("""
-                    SELECT e.Name
-                    FROM Employee e
-                    JOIN Manager m ON e.EmployeeID = m.EmployeeID
-                    WHERE e.EmployeeID = %s
-                """, (employee_id,))
-                manager = cursor.fetchone()
-                if manager:
-                    return redirect(f"/cleaning-michelle?manager_id={employee_id}")
-                else:
-                    message = "Kein Manager mit dieser ID gefunden!"
+#check if Manager is logged in
+@app.route('/check-cleaning-access')
+def check_cleaning_access():
+    emp_id = request.args.get('employee_id')
+    
+    if not EmployeeService.is_manager(emp_id):
+        return jsonify({"access": False, "message": "Only Managers can access Cleaning Assignment"})
+    
+    return jsonify({"access": True, "redirect": f"/cleaning-michelle?employee_id={emp_id}"})
 
-        cursor.execute("""
-            SELECT e.EmployeeID, e.Name
-            FROM Employee e
-            JOIN Manager m ON e.EmployeeID = m.EmployeeID
-            ORDER BY e.Name
-        """)
-        managers = cursor.fetchall() or []
-
-        cursor.close()
-        conn.close()
-
-        return render_template('manager_login.html', managers=managers, message=message)
-
-    except Exception as e:
-        print(f"Login error: {str(e)}")
-        return f"<h1>Error: {str(e)}</h1><p>Check Docker logs!</p>", 500
-#ende
-
-#neuSQL
 
 
 

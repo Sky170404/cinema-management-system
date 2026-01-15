@@ -16,6 +16,13 @@
         .message { color:#0f0; font-weight:bold; margin:20px 0; }
         .back { margin:30px 0; }
         .filter-buttons button { width:auto; margin-right:10px; }
+        label { font-size:1.2em; margin-right:10px; }
+        #positionTableFilter {
+            background:#221f1f;
+            color:white;
+            border:1px solid #e50914;
+            border-radius:4px;
+        }
     </style>
 </head>
 <body>
@@ -49,7 +56,7 @@
             <button type="submit">Assign Workers</button>
         </form>
 
-        <h2>Filter Workers by their Position</h2>
+        <h2>Filter Workers by their Position (for assignment)</h2>
         <div class="filter-buttons">
             <select id="position_filter" onchange="window.location.href='/cleaning-michelle?position=' + this.value + '&manager_id=' + '{{ manager_id }}'">
                 <option value="">All Positions</option>
@@ -60,7 +67,18 @@
         </div>
 
         <h2>Current Worker Workload Report</h2>
-        <table>
+
+        <div style="margin: 20px 0; text-align: center;">
+            <label for="positionTableFilter">Filter table by Position:</label>
+            <select id="positionTableFilter" onchange="filterTable()">
+                <option value="">All Positions</option>
+                <option value="Cleaner">Cleaner</option>
+                <option value="Technician">Technician</option>
+                <option value="Usher">Usher</option>
+            </select>
+        </div>
+
+        <table id="workloadTable">
             <tr>
                 <th>Worker Name</th>
                 <th>Position</th>
@@ -70,6 +88,7 @@
                 <th>Delete from Room</th>
             </tr>
             {% for row in workload %}
+                {% if row.Position in ['Cleaner', 'Technician', 'Usher'] %}
                 <tr>
                     <td>{{ row.Name }}</td>
                     <td>{{ row.Position }}</td>
@@ -90,12 +109,34 @@
                         {% endif %}
                     </td>
                 </tr>
+                {% endif %}
             {% endfor %}
         </table>
 
-            <div style="text-align: center;">
-                <button class="btn" style="background: #333;" onclick="window.location.href='/?employee_id={{ manager_id }}'">Back to Home</button>
-            </div>
+        <div style="text-align: center; margin-top: 30px;">
+            <button class="btn" style="background: #333;" onclick="window.location.href='/?employee_id={{ manager_id }}'">Back to Home</button>
         </div>
-    </body>
+    </div>
+
+    <script>
+    function filterTable() {
+        const filter = document.getElementById("positionTableFilter").value.toLowerCase();
+        const table = document.getElementById("workloadTable");
+        const trs = table.getElementsByTagName("tr");
+
+        for (let i = 1; i < trs.length; i++) { 
+            const positionCell = trs[i].getElementsByTagName("td")[1];  
+            if (positionCell) {
+                const positionText = positionCell.textContent || positionCell.innerText;
+                if (filter === "" || positionText.toLowerCase().includes(filter)) {
+                    trs[i].style.display = "";
+                } else {
+                    trs[i].style.display = "none";
+                }
+            }
+        }
+    }
+    </script>
+
+</body>
 </html>
