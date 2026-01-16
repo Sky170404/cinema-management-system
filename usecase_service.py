@@ -7,7 +7,7 @@ fake = Faker()
 
 class UsecaseService:
     @staticmethod
-    def run_marketing_use_case(db_type, rating_filter=None):
+    def run_marketing_use_case(db_type, emp_id, rating_filter=None):
         if db_type == 'SQL':
             conn = get_db_connection()
             cursor = conn.cursor()

@@ -582,6 +582,7 @@ def save_trailer_mongo():
     finally:
         if 'mongo_client' in locals():
             mongo_client.close()
+
 # --- END NOSQL ROUTES ---
 # --- END MANAGEMENT ROUTES ---
 
@@ -626,11 +627,11 @@ def run_use_case():
     if not rating:
         rating = None
 
-    if not EmployeeService.is_marketing_staff(emp_id):
+    if not emp_id or not EmployeeService.is_marketing_staff(emp_id):
         return jsonify({"error": "Restricted to Marketing team."}), 403
 
     try:
-        result = UsecaseService.run_marketing_use_case(db_type, rating)
+        result = UsecaseService.run_marketing_use_case(db_type, emp_id, rating)
         if "error" in result:
             return jsonify(result), 400
         return jsonify(result)
