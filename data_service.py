@@ -187,6 +187,8 @@ def run_mongo_migration():
             movie_doc["trailers"] = trailers
             db.movies.insert_one(movie_doc)
 
+        db.movies.create_index("AgeRating")
+
         cursor.execute("SELECT * FROM Room")
         rooms = cursor.fetchall()
         if rooms:
