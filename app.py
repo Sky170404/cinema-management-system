@@ -189,7 +189,7 @@ def cleaning_assignment_michelle():
                 room_id = request.form['delete_room']
                 cursor.execute("DELETE FROM handles WHERE WorkerID = %s AND roomID = %s", (worker_id, room_id))
                 conn.commit()
-                message = f"Zuweisung Worker {worker_id} → Room {room_id} entfernt!"
+                message = f"Assigned worker {worker_id} from rooom {room_id} removed!"
             else:
                 room_id = request.form['room']
                 worker_ids = request.form.getlist('workers')
@@ -198,7 +198,7 @@ def cleaning_assignment_michelle():
                     cursor.execute("INSERT IGNORE INTO handles (WorkerID, RoomID) VALUES (%s, %s)", (worker_id, room_id))
                     assigned_count += 1
                 conn.commit()
-                message = f"{assigned_count} Worker zu Room {room_id} zugewiesen!"
+                message = f"{assigned_count} Worker to room {room_id} assigned!"
 
         position_filter = request.args.get('position', '')
 

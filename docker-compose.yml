@@ -30,6 +30,7 @@ services:
 
   mongo:
       image: mongo:latest
+      container_name: mongo
       restart: always
       ports:
         - "28017:27017"

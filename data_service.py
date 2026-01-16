@@ -199,6 +199,8 @@ def run_mongo_migration():
         if screenings:
             db.screenings.insert_many([dict(s) for s in screenings])
 
+        db.screenings.create_index([("Showtime", 1), ("RoomID",1)])
+
         cursor.execute("SELECT * FROM Customer")
         customers = cursor.fetchall()
         mongo_customers = []
