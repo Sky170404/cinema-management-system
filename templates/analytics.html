@@ -79,8 +79,8 @@
     </select>
 </div>
 
-<div style="text-align: center; margin-bottom: 30px; background: #221f1f; padding: 20px; border-radius: 8px; border: 1px solid #e50914;">
-    <h3 style="margin-top: 0; color: #e50914;">Use Case: Campaign Management</h3>
+<div style="text-align: center; margin-bottom: 30px; background: #141414; padding: 20px; border-radius: 8px; border: 1px solid {{ '#e50914' if type == 'SQL' else '#47a248' }};">
+    <h3 style="margin-top: 0; color: #141414;">Use Case: Campaign Management</h3>
     <p>Add a trailer to a random movie {% if current_rating %}with rating
         <strong>{{ current_rating }}</strong>{% endif %}.</p>
     <button class="back-btn"
