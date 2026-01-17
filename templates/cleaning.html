@@ -58,7 +58,7 @@
 
         <h2>Filter Workers by their Position (for assignment)</h2>
         <div class="filter-buttons">
-            <select id="position_filter" onchange="window.location.href='/cleaning-michelle?position=' + this.value + '&manager_id=' + '{{ manager_id }}'">
+            <select id="position_filter" onchange="window.location.href='/cleaning-michelle?position=' + this.value + '&employee_id={{ employee_id }}'">
                 <option value="">All Positions</option>
                 <option value="Cleaner" {% if position_filter == 'Cleaner' %}selected{% endif %}>Cleaner</option>
                 <option value="Technician" {% if position_filter == 'Technician' %}selected{% endif %}>Technician</option>

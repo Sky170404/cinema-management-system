@@ -243,7 +243,8 @@ def cleaning_assignment_michelle():
                                workload=workload, 
                                message=message, 
                                position_filter=position_filter,
-                               manager_name=manager_name)
+                               manager_name=manager_name,
+                               employee_id=emp_id )
 
     except Exception as e:
         print(f"Cleaning error: {str(e)}")
