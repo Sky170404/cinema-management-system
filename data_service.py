@@ -172,8 +172,9 @@ def run_mongo_migration():
                 doc["department"] = emp['Department']
             else:
                 doc["role"] = "Worker"
+                doc["workingHours"] = ""
                 doc["position"] = emp['Position']
-                doc["workingHours"] = emp['WorkingHours']
+
             mongo_employees.append(doc)
         if mongo_employees:
             db.employees.insert_many(mongo_employees)
